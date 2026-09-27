@@ -72,15 +72,6 @@ Nasdaq hosts full-day historical ITCH files at <https://emi.nasdaq.com/ITCH/>. S
 
 The sample files use a slightly different framing from the live wire format: each message is prefixed with a 2-byte big-endian length. See the binary file format spec below.
 
-### Build and run
-
-*To be filled in as stages are completed.*
-
-```
-# Example (planned):
-# make -C tb/parser
-# ./tb/parser/obj_dir/Vparser data/<file>
-```
 
 ## References
 
