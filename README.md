@@ -68,9 +68,7 @@ Each RTL block replaces its C++ counterpart one at a time. After each swap, the 
 
 ### Sample data
 
-Nasdaq hosts full-day historical ITCH files at <https://emi.nasdaq.com/ITCH/>. Start with a **BX** file: they're much smaller than the main Nasdaq files but still contain tens of millions of messages. Place downloaded files in `data/`, which is excluded from git.
-
-The sample files use a slightly different framing from the live wire format: each message is prefixed with a 2-byte big-endian length. See the binary file format spec below.
+Nasdaq hosts full-day historical ITCH files at <https://emi.nasdaq.com/ITCH/>. The sample files use a slightly different framing from the live wire format: ach message is prefixed with a 2-byte big-endian length. See the binary file format spec below.
 
 
 ## References
