@@ -66,6 +66,17 @@ Each RTL block replaces its C++ counterpart one at a time. After each swap, the 
 
 ## Getting started
 
+### Environment
+
+```sh
+make setup      # apt deps + OSS CAD Suite (Verilator, Yosys, SymbiYosys, solvers) + python venv into ./tools
+make doctor     # verify toolchain
+make sample     # download a day of PSX ITCH and cut the first 1M messages to data/sample.itch
+make help       # everything else: lint, sim, waves, formal, synth, test
+```
+
+`make sim BLOCK=<module>` builds `tb/<module>/*.cpp` against the RTL top `<module>` and runs it with `+seed=` and `+itch=`. Vivado isn't installed by `make setup`; source its `settings64.sh` before running `make synth`.
+
 ### Sample data
 
 Nasdaq hosts full-day historical ITCH files at <https://emi.nasdaq.com/ITCH/>. The sample files use a slightly different framing from the live wire format: ach message is prefixed with a 2-byte big-endian length. See the binary file format spec below.

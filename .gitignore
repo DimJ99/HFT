@@ -1,0 +1,11 @@
+# Toolchain (installed by `make setup`)
+/tools/
+
+# Build outputs, waveforms, formal runs
+/build/
+*.vcd
+*.fst
+formal/*/
+
+# Market data (multi-GB; fetched by `make data`)
+/data/
