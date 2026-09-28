@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Download a Nasdaq historical ITCH 5.0 file into data/ and verify its md5.
 #   scripts/fetch_itch.sh [VENUE] [FILE]
-#   VENUE: nasdaq | bx | psx          (default psx: smallest full day, ~850 MB gz)
-#   FILE : name on emi.nasdaq.com     (default: 20181228.PSX_ITCH_50.gz)
+#   VENUE: nasdaq | bx | psx          (default nasdaq)
+#   FILE : name on emi.nasdaq.com     (default: 07302019.NASDAQ_ITCH50.gz, ~3.7 GB)
 # `scripts/fetch_itch.sh list nasdaq` prints the available files for a venue.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,18 +25,21 @@ if [ "${1:-}" = list ]; then
     exit 0
 fi
 
-VENUE=${1:-psx}
-FILE=${2:-20181228.PSX_ITCH_50.gz}
+VENUE=${1:-nasdaq}
+FILE=${2:-07302019.NASDAQ_ITCH50.gz}
 d=$(dir_for "$VENUE")
 mkdir -p "$ROOT/data"
 cd "$ROOT/data"
 
 echo "fetching $FILE from $VENUE (resumable)"
 curl -fL -C - --progress-bar -o "$FILE" "$BASE/$d/$FILE"
-if curl -fsSL -o "$FILE.md5sum" "$BASE/$d/$FILE.md5sum"; then
+if curl -fsSL -o "$FILE.md5sum" "$BASE/$d/$FILE.md5sum" 2>/dev/null; then
     want=$(awk '{print $1}' "$FILE.md5sum")
     have=$(md5sum "$FILE" | awk '{print $1}')
     [ "$want" = "$have" ] && echo "md5 ok" || { echo "md5 MISMATCH ($have != $want)"; exit 1; }
+else
+    rm -f "$FILE.md5sum"
+    echo "(no md5 published for $FILE; skipping check)"
 fi
 
 # Stock locate codes for the same day (maps locate IDs -> tickers), best-effort.

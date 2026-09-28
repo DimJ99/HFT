@@ -137,7 +137,7 @@ Every block goes through the same steps:
 ```sh
 make setup      # apt deps + OSS CAD Suite (Verilator, Yosys, SymbiYosys, solvers) + python venv into ./tools
 make doctor     # verify toolchain
-make sample     # download a day of PSX ITCH and cut the first 1M messages to data/sample.itch
+make sample     # download a Nasdaq day and cut AAPL (start of day to 10:00) to data/AAPL.itch
 make help       # everything else: lint, sim, waves, formal, synth, test
 ```
 

@@ -21,12 +21,13 @@ export PATH := $(ROOT)/tools/bin:$(ROOT)/tools/oss-cad-suite/bin:$(ROOT)/tools/v
 # TRACE    1 = dump FST waves
 # ARGS     extra args for the sim binary
 # ITCH     ITCH file passed to the testbench as +itch=
+# SYMBOL   ticker that `make sample` filters for; UNTIL = feed time to stop at
 # PART     Vivado part for `make synth`; set to your board's device
 BLOCK    ?=
 SEED     ?= 1
 TRACE    ?= 1
 ARGS     ?=
-ITCH     ?= $(firstword $(wildcard data/sample.itch))
+ITCH     ?= $(firstword $(wildcard data/$(SYMBOL).itch))
 CXX      ?= g++
 CXXSTD   ?= c++20
 OPT      ?= -O2 -g
@@ -34,9 +35,11 @@ JOBS     ?= $(shell nproc)
 CLK_MHZ  ?= 156.25
 CLK_PORT ?= clk
 PART     ?= xcku5p-ffvb676-2-e
-VENUE    ?= psx
-ITCH_GZ  ?= 20181228.PSX_ITCH_50.gz
-SAMPLE_N ?= 1000000
+VENUE    ?= nasdaq
+ITCH_GZ  ?= 07302019.NASDAQ_ITCH50.gz
+SYMBOL   ?= AAPL
+UNTIL    ?= 10:00
+COV_N    ?= 500
 
 # ---- sources -------------------------------------------------------------------
 rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
@@ -77,7 +80,8 @@ help:
 	@echo "Data"
 	@echo "  make data                  fetch $(ITCH_GZ) ($(VENUE)) into data/"
 	@echo "  make data-list VENUE=nasdaq  list downloadable days"
-	@echo "  make sample                first $(SAMPLE_N) msgs -> data/sample.itch"
+	@echo "  make sample [SYMBOL= UNTIL=]  $(SYMBOL) msgs from start of day to $(UNTIL) -> data/$(SYMBOL).itch"
+	@echo "  make coverage [COV_N=]    first $(COV_N) of every msg type, all symbols -> data/coverage.itch"
 	@echo "C++"
 	@echo "  make model                 build golden models -> build/libmodel.a"
 	@echo "  make apps                  build apps/* -> build/bin/  [$(APPS)]"
@@ -103,14 +107,17 @@ shell:
 	@echo "toolchain on PATH; exit to leave"; exec bash --rcfile <(cat ~/.bashrc 2>/dev/null; echo 'source scripts/env.sh; PS1="(hft) $$PS1"')
 
 # ---- data ----------------------------------------------------------------------
-.PHONY: data data-list sample
+.PHONY: data data-list sample coverage
 data:
 	@scripts/fetch_itch.sh $(VENUE) $(ITCH_GZ)
 data-list:
 	@scripts/fetch_itch.sh list $(VENUE)
-sample: data/sample.itch
-data/sample.itch: | data/$(ITCH_GZ)
-	python3 scripts/itch_head.py data/$(ITCH_GZ) $@ -n $(SAMPLE_N)
+sample: data/$(SYMBOL).itch
+data/$(SYMBOL).itch: | data/$(ITCH_GZ)
+	python3 scripts/itch_filter.py data/$(ITCH_GZ) $@ --symbol $(SYMBOL) --until $(UNTIL)
+coverage: data/coverage.itch
+data/coverage.itch: | data/$(ITCH_GZ)
+	python3 scripts/itch_coverage.py data/$(ITCH_GZ) $@ -n $(COV_N)
 data/$(ITCH_GZ):
 	@scripts/fetch_itch.sh $(VENUE) $(ITCH_GZ)
 
