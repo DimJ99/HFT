@@ -19,10 +19,29 @@ struct itch_packer { char type; int16_t location;
 void parser (itch_packer input) {
 
     switch (input.type) {
-        case "A"
-
-
-
+        case 'A':
+        case 'B':
+        case 'C':
+        case 'D':
+        case 'E':
+        case 'F':
+        case 'H':
+        case 'h':
+        case 'I':
+        case 'J':
+        case 'K':
+        case 'L':
+        case 'N':
+        case 'O':
+        case 'P':
+        case 'Q':
+        case 'R':
+        case 'S':
+        case 'U':
+        case 'V':
+        case 'W':
+        case 'X':
+        case 'Y':
     }
 
 }
