@@ -12,234 +12,183 @@
 #include <iostream>
 #include <cstdint>
 
-struct Int48 {
-    uint64_t value : 48;
-};
-struct itch_packer { char type; int16_t location;
-    int16_t tracking_number; Int48 time;
-    std::byte message[50]; 
-};
+#include "itch.hpp"
 
 static uint16_t be16(const void* p) { auto b = static_cast<const uint8_t*>(p); return uint16_t((b[0] << 8) | b[1]); }
 static uint32_t be32(const void* p) { auto b = static_cast<const uint8_t*>(p); return (uint32_t(be16(b)) << 16) | be16(b + 2); }
+static uint64_t be48(const void* p) { auto b = static_cast<const uint8_t*>(p); return (uint64_t(be16(b)) << 32) | be32(b + 2); }
 static uint64_t be64(const void* p) { auto b = static_cast<const uint8_t*>(p); return (uint64_t(be32(b)) << 32) | be32(b + 4); }
 
-struct parsed {      
-    uint64_t order_ref; 
-    std::byte side;
-    uint32_t shares; 
-    uint64_t stock; 
-    uint32_t price; 
-    uint32_t exshare;
-    uint64_t mnum;
-    uint32_t execprice;
-    std::byte printable;
-    uint32_t atr;
-    std::byte tradestate;
-    std::byte reserved;
-    uint32_t reason_code;
-    std::byte market_code; 
-    std::byte halt;
-    uint64_t parshar;
-    uint64_t imb_shares;
-    std::byte imb_dir;
-    uint32_t far_prc;
-    uint32_t near_prc;
-    uint32_t cref;
-    std::byte crstype;
-    std::byte pricevar;
-    uint32_t rprc;
-    uint32_t ucllr;
-    uint32_t lcllr;
-    uint32_t ex;
-    uint32_t reltime;
-    std::byte relqual;
-    uint32_t ipoprc;
-    uint32_t MPID;
-    std::byte pmm; 
-    std::byte mmmm;
-    std::byte mps;  
-    std::byte intflg;
-    std::byte opnelg;
-    uint32_t minprc;
-    uint32_t maxprc;
-    uint32_t nearexp;
-    uint64_t nearext;
-    uint32_t crsprc;
-    uint64_t lshare;
-    std::byte evntcd;
-    uint64_t ogref;
-    uint64_t nwref;
-    uint64_t level1;
-    uint64_t level2;
-    uint64_t level3;
-    std::byte breachedlvl;
-    uint32_t xshare;
-    std::byte regsho;
-    std::byte markcat;
-    std::byte finstat;
-    uint32_t rndltsz;
-    std::byte rndltsnly;
-    uint16_t isssubtyp;
-    std::byte issueclar;
-    std::byte auth;
-    std::byte shortsalethres;
-    std::byte ipoflg;
-    std::byte LULD;
-    std::byte ETPF;
-    uint32_t ETPLF;
-    std::byte invind;
-};
-
-
-parsed parser (itch_packer input) {
+static int expected_len(char t) {
+    switch (t) {
+        case 'S': return 12;  case 'R': return 39;  case 'H': return 25;
+        case 'Y': return 20;  case 'L': return 26;  case 'V': return 35;
+        case 'W': return 12;  case 'K': return 28;  case 'J': return 35;
+        case 'h': return 21;  case 'A': return 36;  case 'F': return 40;
+        case 'E': return 31;  case 'C': return 36;  case 'X': return 23;
+        case 'D': return 19;  case 'U': return 35;  case 'P': return 44;
+        case 'Q': return 40;  case 'B': return 19;  case 'I': return 50;
+        case 'N': return 20;  case 'O': return 48;
+        default:  return 0;
+    }
+}
+parsed parser (const uint8_t* msg, size_t len) {
 parsed out{};
-    switch (input.type) {
+    if (len == 0 || size_t(expected_len(char(msg[0]))) != len)    { out.pstat = parsed::PARSESTATUS::BAD; 
+    return out;}
+    const std::byte* message = reinterpret_cast<const std::byte*>(msg + 11);
+    out.type = char(msg[0]);  
+    out.location = be16(msg + 1);
+    out.tracking_number = be16(msg + 3);
+    out.time = int48(be48(msg + 5));
+    switch (out.type) {
         case 'A':
-        out.order_ref = be64(input.message);
-        out.side = input.message[8];
-        out.shares = be32(&input.message[9]); 
-        std::memcpy(&out.stock, &input.message[13], 8);
-        out.price = be32(&input.message[21]); 
+        out.order_ref = be64(message);
+        out.side = message[8];
+        out.shares = be32(&message[9]); 
+        std::memcpy(&out.stock, &message[13], 8);
+        out.price = be32(&message[21]); 
         break;
         case 'B':
-        out.mnum = be64(input.message);
+        out.mnum = be64(message);
         break;
         case 'C':
-        out.order_ref = be64(input.message); 
-        out.exshare = be32(&input.message[8]); 
-        out.mnum = be64(&input.message[12]); 
-        out.printable = input.message[20];
-        out.execprice = be32(&input.message[21]);
+        out.order_ref = be64(message); 
+        out.exshare = be32(&message[8]); 
+        out.mnum = be64(&message[12]); 
+        out.printable = message[20];
+        out.execprice = be32(&message[21]);
         break;
         case 'D':
-        out.order_ref = be64(input.message); 
+        out.order_ref = be64(message); 
         break;
         case 'E':
-        out.order_ref = be64(input.message); 
-        out.exshare = be32(&input.message[8]); 
-        out.mnum = be64(&input.message[12]);
+        out.order_ref = be64(message); 
+        out.exshare = be32(&message[8]); 
+        out.mnum = be64(&message[12]);
         break;
         case 'F':
-        out.order_ref = be64(input.message);
-        out.side = input.message[8];
-        out.shares = be32(&input.message[9]);
-        std::memcpy(&out.stock, &input.message[13], 8);
-        out.price = be32(&input.message[21]); 
-        std::memcpy(&out.atr, &input.message[25], 4); 
+        out.order_ref = be64(message);
+        out.side = message[8];
+        out.shares = be32(&message[9]);
+        std::memcpy(&out.stock, &message[13], 8);
+        out.price = be32(&message[21]); 
+        std::memcpy(&out.atr, &message[25], 4); 
         break;       
         case 'H':
-        std::memcpy(&out.stock, input.message, 8); 
-        std::memcpy(&out.tradestate, &input.message[8], 1);
-        std::memcpy(&out.reserved, &input.message[9], 1);
-        std::memcpy(&out.reason_code, &input.message[10], 4); 
+        std::memcpy(&out.stock, message, 8); 
+        std::memcpy(&out.tradestate, &message[8], 1);
+        std::memcpy(&out.reserved, &message[9], 1);
+        std::memcpy(&out.reason_code, &message[10], 4); 
         break;
         case 'h':
-        std::memcpy(&out.stock, input.message, 8);
-        out.market_code = input.message[8];
-        out.halt = input.message[9];
+        std::memcpy(&out.stock, message, 8);
+        out.market_code = message[8];
+        out.halt = message[9];
         break;
         case 'I':
-        out.parshar = be64(input.message);
-        out.imb_shares = be64(&input.message[8]); 
-        std::memcpy(&out.imb_dir, &input.message[16], 1);
-        std::memcpy(&out.stock, &input.message[17], 8);
-        out.far_prc = be32(&input.message[25]); 
-        out.near_prc = be32(&input.message[29]);
-        out.cref = be32(&input.message[33]); 
-        std::memcpy(&out.crstype, &input.message[37], 1);
-        std::memcpy(&out.pricevar, &input.message[38], 1);
+        out.parshar = be64(message);
+        out.imb_shares = be64(&message[8]); 
+        std::memcpy(&out.imb_dir, &message[16], 1);
+        std::memcpy(&out.stock, &message[17], 8);
+        out.far_prc = be32(&message[25]); 
+        out.near_prc = be32(&message[29]);
+        out.cref = be32(&message[33]); 
+        std::memcpy(&out.crstype, &message[37], 1);
+        std::memcpy(&out.pricevar, &message[38], 1);
         break;
         case 'J':
-        std::memcpy(&out.stock, input.message, 8);
-        out.rprc = be32(&input.message[8]); 
-        out.ucllr = be32(&input.message[12]); 
-        out.lcllr = be32(&input.message[16]); 
-        out.ex = be32(&input.message[20]); 
+        std::memcpy(&out.stock, message, 8);
+        out.rprc = be32(&message[8]); 
+        out.ucllr = be32(&message[12]); 
+        out.lcllr = be32(&message[16]); 
+        out.ex = be32(&message[20]); 
         break;
         case 'K':
-        std::memcpy(&out.stock, input.message, 8);
-        out.reltime = be32(&input.message[8]); 
-        std::memcpy(&out.relqual, &input.message[12], 1);
-        out.ipoprc = be32(&input.message[13]); 
+        std::memcpy(&out.stock, message, 8);
+        out.reltime = be32(&message[8]); 
+        std::memcpy(&out.relqual, &message[12], 1);
+        out.ipoprc = be32(&message[13]); 
         break;
         case 'L':
-        std::memcpy(&out.MPID, input.message, 4);
-        std::memcpy(&out.stock, &input.message[4], 8);
-        std::memcpy(&out.pmm, &input.message[12], 1); 
-        std::memcpy(&out.mmmm, &input.message[13], 1);
-        std::memcpy(&out.mps, &input.message[14], 1); 
+        std::memcpy(&out.MPID, message, 4);
+        std::memcpy(&out.stock, &message[4], 8);
+        std::memcpy(&out.pmm, &message[12], 1); 
+        std::memcpy(&out.mmmm, &message[13], 1);
+        std::memcpy(&out.mps, &message[14], 1); 
         break;
         case 'N':
-        std::memcpy(&out.stock, input.message, 8);
-        std::memcpy(&out.intflg, &input.message[8], 1);
+        std::memcpy(&out.stock, message, 8);
+        std::memcpy(&out.intflg, &message[8], 1);
         break;
         case 'O':
-        std::memcpy(&out.stock, input.message, 8);
-        std::memcpy(&out.opnelg, &input.message[8], 1);
-        out.minprc = be32(&input.message[9]); 
-        out.maxprc = be32(&input.message[13]); 
-        out.nearexp = be32(&input.message[17]); 
-        out.nearext = be64(&input.message[21]);
-        out.lcllr = be32(&input.message[29]);
-        out.ucllr = be32(&input.message[33]);
+        std::memcpy(&out.stock, message, 8);
+        std::memcpy(&out.opnelg, &message[8], 1);
+        out.minprc = be32(&message[9]); 
+        out.maxprc = be32(&message[13]); 
+        out.nearexp = be32(&message[17]); 
+        out.nearext = be64(&message[21]);
+        out.lcllr = be32(&message[29]);
+        out.ucllr = be32(&message[33]);
         break;
         case 'P':
-        out.order_ref = be64(input.message); 
-        std::memcpy(&out.side, &input.message[8], 1);
-        out.shares = be32(&input.message[9]); 
-        std::memcpy(&out.stock, &input.message[13], 8);
-        out.price = be32(&input.message[21]); 
-        out.mnum = be64(&input.message[25]);
+        out.order_ref = be64(message); 
+        std::memcpy(&out.side, &message[8], 1);
+        out.shares = be32(&message[9]); 
+        std::memcpy(&out.stock, &message[13], 8);
+        out.price = be32(&message[21]); 
+        out.mnum = be64(&message[25]);
         break;
         case 'Q':
-        out.lshare = be64(input.message); 
-        std::memcpy(&out.stock, &input.message[8], 8);
-        out.crsprc = be32(&input.message[16]); 
-        out.mnum = be64(&input.message[20]);
-        std::memcpy(&out.crstype, &input.message[28], 1);
+        out.lshare = be64(message); 
+        std::memcpy(&out.stock, &message[8], 8);
+        out.crsprc = be32(&message[16]); 
+        out.mnum = be64(&message[20]);
+        std::memcpy(&out.crstype, &message[28], 1);
         break;
         case 'R':
-        std::memcpy(&out.stock, input.message, 8);
-        std::memcpy(&out.markcat, &input.message[8], 1);
-        std::memcpy(&out.finstat, &input.message[9], 1);
-        out.rndltsz = be32(&input.message[10]);
-        std::memcpy(&out.rndltsnly, &input.message[14], 1);
-        std::memcpy(&out.issueclar, &input.message[15], 1);
-        std::memcpy(&out.isssubtyp, &input.message[16], 2);
-        std::memcpy(&out.auth, &input.message[18], 1);
-        std::memcpy(&out.shortsalethres, &input.message[19], 1);
-        std::memcpy(&out.ipoflg, &input.message[20], 1);
-        std::memcpy(&out.LULD, &input.message[21], 1);
-        std::memcpy(&out.ETPF, &input.message[22], 1);
-        out.ETPLF = be32(&input.message[23]);
-        std::memcpy(&out.invind, &input.message[27], 1);
+        std::memcpy(&out.stock, message, 8);
+        std::memcpy(&out.markcat, &message[8], 1);
+        std::memcpy(&out.finstat, &message[9], 1);
+        out.rndltsz = be32(&message[10]);
+        std::memcpy(&out.rndltsnly, &message[14], 1);
+        std::memcpy(&out.issueclar, &message[15], 1);
+        std::memcpy(&out.isssubtyp, &message[16], 2);
+        std::memcpy(&out.auth, &message[18], 1);
+        std::memcpy(&out.shortsalethres, &message[19], 1);
+        std::memcpy(&out.ipoflg, &message[20], 1);
+        std::memcpy(&out.LULD, &message[21], 1);
+        std::memcpy(&out.ETPF, &message[22], 1);
+        out.ETPLF = be32(&message[23]);
+        std::memcpy(&out.invind, &message[27], 1);
         break;
         case 'S':
-        std::memcpy(&out.evntcd, &input.message[0], 1);
+        std::memcpy(&out.evntcd, &message[0], 1);
         break;
         case 'U':
-        out.ogref = be64(input.message);
-        out.nwref = be64(&input.message[8]);
-        out.shares = be32(&input.message[16]); 
-        out.price = be32(&input.message[20]);
+        out.ogref = be64(message);
+        out.nwref = be64(&message[8]);
+        out.shares = be32(&message[16]); 
+        out.price = be32(&message[20]);
         break;
         case 'V':
-        out.level1 = be64(input.message); 
-        out.level2 = be64(&input.message[8]); 
-        out.level3 = be64(&input.message[16]);
+        out.level1 = be64(message); 
+        out.level2 = be64(&message[8]); 
+        out.level3 = be64(&message[16]);
         break;
         case 'W':
-        std::memcpy(&out.breachedlvl, input.message, 1);
+        std::memcpy(&out.breachedlvl, message, 1);
         break;
         case 'X':
-        out.order_ref = be64(input.message);
-        out.xshare = be32(&input.message[8]); 
+        out.order_ref = be64(message);
+        out.xshare = be32(&message[8]); 
         break;
         case 'Y':
-        std::memcpy(&out.stock, input.message, 8);
-        std::memcpy(&out.regsho, &input.message[8], 1);
+        std::memcpy(&out.stock, message, 8);
+        std::memcpy(&out.regsho, &message[8], 1);
         break;
     }
+    out.pstat = parsed::PARSESTATUS::CLEAN;
     return out; 
 }
+
