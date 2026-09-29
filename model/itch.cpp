@@ -93,7 +93,7 @@ struct parsed {
 
 
 parsed parser (itch_packer input) {
-parsed out{}; // FIX: zero unused fields
+parsed out{};
     switch (input.type) {
         case 'A':
         out.order_ref = be64(input.message);
