@@ -38,7 +38,6 @@ struct parsed {
     std::byte tradestate;
     std::byte reserved;
     uint32_t reason_code;
-    // uint64_t stock;   // FIX: duplicate name
     std::byte market_code; 
     std::byte halt;
     uint64_t parshar;
