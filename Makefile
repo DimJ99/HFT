@@ -40,6 +40,8 @@ ITCH_GZ  ?= 07302019.NASDAQ_ITCH50.gz
 SYMBOL   ?= AAPL
 UNTIL    ?= 10:00
 COV_N    ?= 500
+APP      ?=
+SAN_OPT  ?= -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined
 
 # ---- sources -------------------------------------------------------------------
 rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
@@ -85,13 +87,17 @@ help:
 	@echo "C++"
 	@echo "  make model                 build golden models -> build/libmodel.a"
 	@echo "  make apps                  build apps/* -> build/bin/  [$(APPS)]"
+	@echo "  make run-<app> [ARGS=]     build + run one app, e.g. make run-itch_dump ARGS=data/AAPL.itch"
+	@echo "  make check-itch            parse every data/*.itch with itch_dump; fails on any BAD message"
+	@echo "  make asan [APP=x ARGS=]    ASan+UBSan build in build/asan, then check-itch (or run APP)"
+	@echo "  make check                 every model check (check-itch)"
 	@echo "RTL"
 	@echo "  make lint [BLOCK=x]        verilator lint"
 	@echo "  make sim BLOCK=x [SEED= TRACE=0 ARGS=]   build + run tb/x against rtl top x"
 	@echo "  make waves BLOCK=x         open build/sim/x/waves.fst"
 	@echo "  make formal [JOB=x]        run formal/*.sby  [$(SBY_JOBS)]"
 	@echo "  make synth BLOCK=x [PART= CLK_MHZ=]      Vivado OOC synth + timing"
-	@echo "  make test                  lint + every tb + every formal job"
+	@echo "  make test                  lint + model checks + every tb + every formal job"
 	@echo "Misc"
 	@echo "  make format | clean | distclean"
 	@echo ""
@@ -137,9 +143,26 @@ define APP_template
 $(BUILD)/bin/$(1): $$(patsubst %.cpp,$(BUILD)/obj/%.o,$$(wildcard apps/$(1)/*.cpp)) $(BUILD)/libmodel.a
 	@mkdir -p $$(@D)
 	$$(CXX) $$(CXXFLAGS) $$^ -o $$@ -lz
+.PHONY: run-$(1)
+run-$(1): $(BUILD)/bin/$(1)
+	$(BUILD)/bin/$(1) $$(ARGS)
 endef
 $(foreach a,$(APPS),$(eval $(call APP_template,$(a))))
 apps: $(APPS:%=$(BUILD)/bin/%)
+
+# ---- model checks: golden models against real data ------------------------------
+ITCH_FILES := $(wildcard data/*.itch)
+
+.PHONY: check check-itch asan
+check: check-itch
+
+check-itch: $(BUILD)/bin/itch_dump
+	@if [ -z "$(ITCH_FILES)" ]; then echo "(no data/*.itch yet; make coverage or make sample)"; exit 0; fi; \
+	set -e; for f in $(ITCH_FILES); do echo "== itch_dump $$f"; $(BUILD)/bin/itch_dump $$f; done
+
+# Same targets, rebuilt with sanitizers into a separate tree so normal builds stay fast.
+asan:
+	@$(MAKE) --no-print-directory BUILD=$(ROOT)/build/asan OPT="$(SAN_OPT)" $(if $(APP),run-$(APP),check-itch)
 
 -include $(shell find $(BUILD)/obj -name '*.d' 2>/dev/null)
 
@@ -182,7 +205,7 @@ synth:
 	    -source $(ROOT)/scripts/synth.tcl -tclargs $(BLOCK) $(PART) $(CLK_PORT) \
 	    $$(python3 -c "print(f'{1000/$(CLK_MHZ):.3f}')") $(BUILD)/synth/$(BLOCK) $(abspath $(RTL_SRCS))
 
-test: lint
+test: lint check
 	@set -e; for b in $(TB_BLOCKS); do $(MAKE) --no-print-directory sim BLOCK=$$b TRACE=0; done
 	@$(MAKE) --no-print-directory formal
 
