@@ -46,7 +46,8 @@ SAN_OPT  ?= -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined
 # ---- sources -------------------------------------------------------------------
 rwildcard = $(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
-RTL_SRCS  := $(call rwildcard,rtl,*.sv *.v)
+RTL_ALL   := $(call rwildcard,rtl,*.sv *.v)
+RTL_SRCS  := $(filter %_pkg.sv,$(RTL_ALL)) $(filter-out %_pkg.sv,$(RTL_ALL))   # packages compile first
 RTL_INCS  := $(addprefix -I,$(sort $(dir $(RTL_SRCS))))
 MODEL_SRC := $(call rwildcard,model,*.cpp)
 MODEL_OBJ := $(MODEL_SRC:%.cpp=$(BUILD)/obj/%.o)
