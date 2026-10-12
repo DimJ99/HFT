@@ -8,65 +8,48 @@ module itch_parser (
     input logic clk, input logic nrst,
     axis_if.sink s_axis
 );
-    localparam MAX_PACK = $clog2 (50*8);
+    typedef enum logic [1:0] {START, PARSE, HALF, BUFF} state_t;
 
-    logic [7:0] lpntr; 
-    logic [MAX_PACK:0] len, ilen, nlen, plen;
+    state_t nstate, state; 
+    logic [7:0] headl, nheadl;
 
-    typedef enum logic [1:0] {GET, PARSE, HALF} state_t;
-
-    state_t state, nstate;
-    always_ff @(posedge clk or negedge nrst) begin
-        if(!nrst) begin
-        state <= GET;
-        end else 
+        always_ff @( posedge clk or negedge nrst ) begin
+        if (!nrst) begin
+        state <= START; 
+        end else begin
         state <= nstate;
+        end
     end
-
-    always_comb begin
-    case (nstate) 
-    GET: nstate = PARSE;
-    PARSE: if (lpntr == 55) nstate = HALF;
+    always_comb begin      
+    case (nstate)
+    START: nstate = PARSE;
+    PARSE: if (headl < 6) nstate = BUFF;
+    if (headl == 7) nstate = HALF;
+    if (headl == 6) nstate = START;  
     HALF: nstate = PARSE;
-    default: nstate = GET;
+    BUFF: nstate = PARSE;
     endcase
     end
 
 
-    always_ff @(posedge clk or negedge nrst) begin
+    always_ff @( posedge clk or negedge nrst ) begin
         if (!nrst) begin
-        len <= 0; 
-        ilen <= 0;
+        headl <= 0; 
         end else begin
-        len <= len-64; 
-        if (state == GET) len <= nlen - 48;
-        if (s_axis.tlast) len <= nlen-(64 - lpntr+16);
-        if (state == HALF) len <= nlen - 56;
-        if ((lpntr == 55)) len = nlen;
+        headl <= nheadlen;
         end
-    end 
-
-
+    end
     always_comb begin
-    lpntr = 0;
-    nlen = (s_axis.tdata [lpntr+:8] + s_axis.tdata[(lpntr+8) +: 8]) * 8;
-    if (s_axis.tlast) lpntr = len; 
-    if (lpntr == 55) nlen = s_axis.tdata [lpntr+:8];
-    if (state == HALF)nlen = ( len + s_axis.tdata [lpntr+:8])* 8;
+        nheadl = 0;   
+        if (headl < 8) nheadl =  s_axis.tdata[(63 - (headl*8)) -: 16]  - 6+headl;
+        if (headl >= 8) nheadl = headl - 8;  
     end
-
-
-    
-    always_comb begin // type
-    s_axis.parsed.type =0;
-    if (state = GET) axis_if.parsed.type = s_axis.tdata [(lpntr+16)+:8];
-    if (s_axis.tlast) axis_if.parsed.type = s_axis.tdata [(lpntr+16)+:8];
-    if (lpntr == 39) axis_if.parsed.type = s_axis.tdata [lpntr+:8];
-    end
-
-
-    always_comb begin //parsing
-    
+     always_ff @( posedge clk or negedge nrst ) begin
+        if (!nrst) begin
+        headl <= 0; 
+        end else begin
+        axis_if.parsed.type <= s_axis.tdata[headl+:16];
+        end
     end
 
 // TODO STRUCT: 2 CONCURRENT STORAGE ELEMENTS
