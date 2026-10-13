@@ -1,3 +1,4 @@
+import itch_pkg::*;
 interface axis_if #(
     parameter int DATA_W = 64,
     parameter int USER_W = 1
