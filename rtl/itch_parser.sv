@@ -37,7 +37,7 @@ module itch_parser (
         if (half == 1) nheadl = {upper, s_axis.tdata[headl+:8]} - 7;
     end
 
-    logic [49:0] [7:0] stored, ready;
+    logic [49:0] [7:0] stored, decode;
     logic [7:0] [7:0]sbuffer;      
     logic [7:0] lane0,lane1,lane2,lane3,lane4,lane5,lane6,lane7; 
     logic merge;
@@ -52,10 +52,19 @@ module itch_parser (
     lane7 = s_axis.tdata[63:56];
     end
 
+    always_ff @(posedge clk or negedge nrst) begin
+    if(!nrst) begin
+    merge <= 0;
+    end else begin
+    merge <= headl < 8 ?  1 : 0;
+    end
+
+    end
      always_ff @( posedge clk or negedge nrst ) begin
         if (!nrst) begin
         stored <= 0;
         end else begin
+        if (merge) stored[headl+1+:8] <= sbuffer;
         if (headl > 7)begin
         stored[headl] <= lane0;
         stored[headl-1] <= lane1;
@@ -131,40 +140,70 @@ module itch_parser (
 
     always_ff @( posedge clk or negedge nrst ) begin
         if (!nrst) begin
-        stored <= 0; 
+        sbuffer <= 0; 
         end else begin
-        stored <= 0;
+        sbuffer <= 0;
         if (headl == 5) begin
-        stored[0] <= lane7; 
+        sbuffer[0] <= lane7; 
         merge <= 1; 
         end if (headl == 4) begin
-        stored[0] <= lane6;
-        stored[1] <= lane7; 
+        sbuffer[0] <= lane6;
+        sbuffer[1] <= lane7; 
         merge <= 1; 
         end if (headl == 3) begin
-        stored[0] <= lane5;
-        stored[1] <= lane6;
-        stored[2] <= lane7;
+        sbuffer[0] <= lane5;
+        sbuffer[1] <= lane6;
+        sbuffer[2] <= lane7;
         merge <= 1; 
         end if (headl == 2) begin
-        stored[0] <= lane4;
-        stored[1] <= lane5;
-        stored[2] <= lane6; 
-        stored[3] <= lane7;
+        sbuffer[0] <= lane4;
+        sbuffer[1] <= lane5;
+        sbuffer[2] <= lane6; 
+        sbuffer[3] <= lane7;
         merge <= 1;
         end if (headl == 1) begin
-        stored[0] <= lane3;
-        stored[1] <= lane4;
-        stored[2] <= lane5; 
-        stored[3] <= lane6;
-        stored[4] <= lane7;
+        sbuffer[0] <= lane3;
+        sbuffer[1] <= lane4;
+        sbuffer[2] <= lane5; 
+        sbuffer[3] <= lane6;
+        sbuffer[4] <= lane7;
         merge <= 1;
         end 
     end
     end
 
-
+    
 // TODO Actually add final and decode struct
+
+    always_ff @(posedge clk or negedge nrst) begin
+    if (!nrst) begin
+    decode <=0;
+    end else begin
+    decode <= decode;
+    if (merge)
+    decode <= stored;
+    end
+    end
+
+    always_ff @(posedge clk or negedge nrst) begin
+    if (!nrst) begin
+    s_axis.out <= 0;
+    end else begin
+    s_axis.out.msg_type <= decode[0];
+    s_axis.out.location <= {decode [1], decode[2]};
+    s_axis.out.tracking_number <= {decode[3], decode [4]};
+    s_axis.out.time_ns <= {decode[5], decode[6], decode[7], decode[8], decode[9], decode[10]};
+    end
+    case (decode[0])
+    8'b01100001:
+    s_axis.out.order_ref <= {decode[11], decode [12], decode[13], decode[14], decode [15], decode[16], decode[17], decode[18]};
+    s_axis.out.side <= decode[19];
+    s_axis.out.shares <= {decode [20], decode[21], decode[22], decode[23]};
+    s_axis.out.stock <= {decode[24], decode[25], decode[26], decode[27], decode[28],decode[29],decode[30], decode[31]};
+    s_axis.out.
+    default: decode <= 0;
+    endcase
+    end
 
     assign s_axis.tready = 1'b1;
 
